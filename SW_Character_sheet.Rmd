@@ -1,9 +1,30 @@
 ---
 title: "Star Wars Character Sheet"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 params:
-  sw_char_id: '1'
+  sw_char_id: '2'
 ---
+
+```{r}
+#for demo only
+
+#demo_x <- 5
+
+#resp_to_df(get_person_resp(demo_x))
+
+
+
+```
+
+
+
+
+
+
+
+
 ```{r include=FALSE}
 library(httr)
 library(jsonlite)
