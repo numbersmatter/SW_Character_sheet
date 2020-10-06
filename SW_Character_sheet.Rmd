@@ -1,0 +1,229 @@
+---
+title: "Star Wars Character Sheet"
+output: html_document
+params:
+  sw_char_id: '1'
+---
+```{r include=FALSE}
+library(httr)
+library(jsonlite)
+library(magrittr)
+library(tidyverse)
+library(shiny)
+
+```
+
+
+```{r include=FALSE}
+base_url <- "http://swapi.dev/api/"
+
+#endpoint urls
+people_url <- paste0(base_url, 'people/') 
+films_url <- paste0(base_url, 'films/')
+planets_url <- paste0(base_url, 'planets/')
+
+```
+
+
+
+
+
+
+
+```{r helper functions, include=FALSE}
+
+#Helper Functions 
+#########################
+
+# Create url for API resource from a character id
+get_person_url <- function(id){
+  person_url = paste0(people_url, id, '/')
+  return(person_url)
+}
+
+# Return the response from an API GET request to person endpoint 
+get_person_resp <- function(id){
+  resp = GET(get_person_url(id))
+  warn_for_status(resp, task = 'get person')
+  return(resp)
+}
+
+
+
+# Restructure the json response from an endpoint to a dataframe of key value pairs
+resp_to_df <- function (r){
+  df= httr::content(r) %>% 
+    unlist() %>% 
+    enframe()
+  
+  return (df)
+}
+
+
+
+# restructure the dataframe of key value pairs into a 'tidy' dataframe
+respdf_to_person_df <- function(x ){
+  char_df <- x %>% 
+    #filter(name %in% char_col_names) %>%
+    spread(name, value) #%>%
+    #mutate(id = str_remove(str_remove(x$url,api_url), '/'))
+  
+  return(char_df)
+  
+}
+
+
+
+# function takes a url and returns the {id} value from that url
+##
+#   df      = dataframe with url 
+#   col     = column in df above with url
+#   api_url = base of the url which needs to be removed
+#   id_name = name of new column which will store the {id}
+id_from_col <- function(df,col, api_url, id_name){
+  new_col = id_name
+  
+  id_df =  df %>%
+    mutate(id1 = str_remove(df[,col], api_url)) %>% 
+    mutate(id1 = str_remove(id1, '/')) %>% 
+    rename(!!new_col := id1)
+  
+  return(id_df)
+}
+
+
+# function that returns the name of a star wars planet 
+#    when given the url of that planet
+#
+# planetUrl = url of planet whose name will be returned
+
+
+get_planet_name<- function(planetUrl){
+  resp = GET(planetUrl)
+  warn_for_status(resp, task = 'get planet name')
+  
+  df= httr::content(resp) %>% 
+    unlist() %>% 
+    enframe() %>% 
+    filter(name =='name')
+  
+  return(df[,2][[1]])
+  
+}
+
+# Function that returns the title of a film
+#  when given the url of that film
+#
+# filmUrl = url of film
+
+get_firstFilm_title<- function(filmUrl){
+  resp = GET(filmUrl)
+  warn_for_status(resp, task = 'get film title')
+  
+  df= httr::content(resp) %>% 
+    unlist() %>% 
+    enframe() %>% 
+    filter(name =='title')
+  
+  return(df[,2][[1]])
+  
+  
+  
+  
+}
+
+
+# Function that returns the director of a film
+#  when given the url of that film
+#
+# filmUrl = url of film
+
+get_Film_director<- function(filmUrl){
+  resp = GET(filmUrl)
+  warn_for_status(resp, task = 'get film title')
+  
+  df= httr::content(resp) %>% 
+    unlist() %>% 
+    enframe() %>% 
+    filter(name =='director')
+  
+  return(df[,2][[1]])
+  
+  
+  
+  
+}
+
+```
+
+
+
+
+```{r Build Character dataframe, include=FALSE}
+#create character dataframe to store values for parameterized report
+
+char_df<- resp_to_df(get_person_resp(params$sw_char_id))
+
+
+# tidy up the dataframe to place each variable in it's own column
+# and add columns for character id and home planet id
+
+ char_df<- char_df %>% 
+  respdf_to_person_df() %>% 
+   id_from_col(col = 'url', api_url =  people_url, id_name =  'char_id') %>% 
+   id_from_col( 'homeworld', planets_url, 'home_id') 
+ 
+ # add column for name of the home planet
+ char_df <- char_df %>% 
+   mutate(homeworld_name = get_planet_name(char_df[,"homeworld"][[1]]))
+ 
+ 
+# as part of the unlisting function for df, single value items are kept
+ # while nested lists have a list value suffixed to them. 
+ 
+ 
+ # this code suffixes the value of 1 to the films column to standardize
+  if ('films' %in% colnames(char_df)){
+
+   char_df <- rename(char_df, films1 = films)
+ }
+
+ # Adds columns:
+ #  title_first_film     = title of first film character appear
+ #  director_first_film  = name of director of first film
+ #  num_vehicles_piloted = number of vehicles character pilots 
+ # 
+   char_df <- char_df %>%
+   mutate(title_first_film = get_firstFilm_title(char_df$films1[1])) %>%
+   mutate(director_first_film = get_Film_director(char_df$films1[1])) %>%
+   mutate(num_vehicles_piloted = ncol(select(char_df, starts_with(c('veh','star')))))
+
+
+   
+# Converts the string "n/a" in gender column to 
+#   "non- gendered character"
+   if( char_df$gender[1] == "n/a"){
+   char_df$gender[1] = "non-gendered character"
+ } 
+   
+```
+
+
+
+
+
+# `r char_df$name[1]`
+## Basic Facts
+Born: `r char_df$birth_year[1]`  
+Home Planet: `r char_df$homeworld_name[1]`  
+Gender: `r char_df$gender[1]`  
+Hair Color: `r char_df$hair_color[1]`  
+Eye Color: `r char_df$eye_color[1]`  
+Height: `r char_df$height[1]` cm  
+Mass: `r char_df$mass[1]` kg  
+
+## About Character
+`r char_df$name[1]`  is a fictional character in the Star Wars Universe from the homeworld of `r char_df$homeworld_name[1]` . The character made his first appearance in the Star Wars Movie, ' `r char_df$title_first_film`' which was directed by `r char_df$director_first_film[1]`. This character is a `r char_df$gender[1]` born in the year `r char_df$birth_year[1]` with a listed height of `r char_df$height[1]` cm and a mass of `r char_df$mass[1]` kg.
+
+Though out the Star Wars films, `r char_df$name[1]` is seen piloting a total of `r char_df$num_vehicles_piloted[1]` vehicles.
+
