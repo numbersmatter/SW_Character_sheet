@@ -7,10 +7,11 @@ params:
   sw_char_id: '2'
 ---
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 #for demo only
 
 #demo_x <- 5
+
 
 #resp_to_df(get_person_resp(demo_x))
 
